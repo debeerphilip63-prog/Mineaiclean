@@ -24,3 +24,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* MineAI rustic glow background */
+.mineai-bg {
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(255, 166, 0, 0.18), transparent 55%),
+    radial-gradient(700px 500px at 80% 30%, rgba(255, 140, 0, 0.12), transparent 55%),
+    radial-gradient(600px 450px at 50% 85%, rgba(255, 200, 120, 0.10), transparent 60%),
+    linear-gradient(180deg, #0b0b0f 0%, #07070a 60%, #060608 100%);
+}
+.mineai-glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+.mineai-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.mineai-pill-active {
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: rgba(255, 214, 145, 1);
+}
