@@ -2,7 +2,8 @@ import Link from "next/link";
 import UserButton from "@/components/auth/UserButton";
 import UpgradeButton from "@/components/billing/UpgradeButton";
 
-type Tab = "home" | "create" | "my" | "profile";
+type Tab = "home" | "create" | "my" | "profile" | "admin" | "upgrade";
+
 
 export default function AppShell({
   active,

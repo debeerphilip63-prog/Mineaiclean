@@ -12,7 +12,9 @@ function isPremiumLike(profile: any) {
 
 export async function POST(req: Request) {
   try {
-    const supabase = createSupabaseServerClient();
+    // ✅ IMPORTANT: await server client
+    const supabase = await createSupabaseServerClient();
+
     const { data: userRes } = await supabase.auth.getUser();
     if (!userRes.user) {
       return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
@@ -41,12 +43,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing prompt." }, { status: 400 });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ ok: false, error: "Missing OPENAI_API_KEY." }, { status: 500 });
     }
 
-    // Generate image (Image API with GPT Image model) :contentReference[oaicite:1]{index=1}
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Generate image
     const img = await openai.images.generate({
       model: "gpt-image-1-mini",
       prompt,

@@ -24,9 +24,10 @@ function buildParamString(params: Record<string, string>, passphrase?: string) {
   return s;
 }
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const supabase = createSupabaseServerClient();
+    // ✅ IMPORTANT: your helper returns a Promise, so we must await it
+    const supabase = await createSupabaseServerClient();
 
     const { data: userRes } = await supabase.auth.getUser();
     if (!userRes.user) {
@@ -40,37 +41,30 @@ export async function POST(req: Request) {
 
     if (!merchantId || !merchantKey) {
       return NextResponse.json(
-        { ok: false, error: "Missing PAYFAST_MERCHANT_ID / PAYFAST_MERCHANT_KEY in .env.local" },
+        { ok: false, error: "Missing PAYFAST_MERCHANT_ID / PAYFAST_MERCHANT_KEY in env." },
         { status: 400 }
       );
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-    // PayFast redirects after payment
     const returnUrl = `${baseUrl}/billing/success`;
     const cancelUrl = `${baseUrl}/billing/cancel`;
-
-    // PayFast ITN (webhook) endpoint
     const notifyUrl = `${baseUrl}/api/billing/payfast/itn`;
 
-    // Premium plan details
     const amount = "10.00";
     const itemName = "MineAI Premium Subscription";
     const itemDesc = "Premium monthly subscription";
 
     // Subscription config
-    // frequency=3 => monthly, cycles=0 => ongoing (monthly until cancelled)
     const subscription_type = "1";
-    const frequency = "3";
-    const cycles = "0";
+    const frequency = "3"; // monthly
+    const cycles = "0"; // ongoing
     const recurring_amount = amount;
 
-    // Track this payment
     const m_payment_id = `mineai_${Date.now()}`;
 
-    // IMPORTANT: attach user id so ITN can upgrade the correct user
-    // PayFast supports custom_str1..custom_str5 (free-form strings)
+    // Attach user id so ITN can upgrade correct user
     const custom_str1 = userRes.user.id;
 
     const fields: Record<string, string> = {
@@ -85,13 +79,11 @@ export async function POST(req: Request) {
       item_name: itemName,
       item_description: itemDesc,
 
-      // subscription fields
       subscription_type,
       recurring_amount,
       frequency,
       cycles,
 
-      // our metadata
       custom_str1,
     };
 
@@ -104,6 +96,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, actionUrl, fields });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
