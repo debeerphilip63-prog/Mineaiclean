@@ -46,3 +46,18 @@ body {
   border: 1px solid rgba(245, 158, 11, 0.35);
   color: rgba(255, 214, 145, 1);
 }
+:root {
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-top: env(safe-area-inset-top);
+}
+
+/* Prevent content from hiding behind iPhone notch/home bar */
+.safe-area {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Better tap behavior on mobile */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}

@@ -1,67 +1,253 @@
+"use client";
+
 import Link from "next/link";
-import UserButton from "@/components/auth/UserButton";
-import UpgradeButton from "@/components/billing/UpgradeButton";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-type Tab = "home" | "create" | "my" | "profile" | "admin" | "upgrade";
+export type Tab = "home" | "create" | "my" | "profile" | "admin" | "upgrade";
 
-
-export default function AppShell({
-  active,
-  children,
-}: {
-  active: Tab;
+type Props = {
+  active?: Tab;
   children: React.ReactNode;
-}) {
-  const tabClass = (tab: Tab) =>
-    `flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition ${
-      active === tab
-        ? "bg-amber-500/15 text-amber-100 ring-1 ring-amber-500/30"
-        : "text-zinc-300 hover:bg-white/5"
-    }`;
+};
+
+function cx(...c: Array<string | false | null | undefined>) {
+  return c.filter(Boolean).join(" ");
+}
+
+export default function AppShell({ active = "home", children }: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [logoOk, setLogoOk] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      setUserEmail(data.user?.email ?? null);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  // Prevent background scrolling when mobile menu is open
+  useEffect(() => {
+    if (menuOpen) {
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+    } else {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
+  const nav = [
+    { key: "home" as const, label: "Home", href: "/" },
+    { key: "create" as const, label: "Create", href: "/create" },
+    { key: "my" as const, label: "My Characters", href: "/my-characters" },
+    { key: "profile" as const, label: "Profile", href: "/profile" },
+  ];
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setMenuOpen(false);
+    router.push("/");
+  }
 
   return (
-    <div className="min-h-screen bg-[#0B0B0F]">
-      {/* rustic glow */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute left-[-200px] top-[-200px] h-[600px] w-[700px] rounded-full bg-amber-500/20 blur-[120px]" />
-        <div className="absolute right-[-220px] top-[120px] h-[520px] w-[620px] rounded-full bg-orange-500/15 blur-[120px]" />
-        <div className="absolute left-[30%] bottom-[-240px] h-[520px] w-[620px] rounded-full bg-amber-200/10 blur-[120px]" />
-      </div>
-
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/35 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/40 to-emerald-500/20 ring-1 ring-white/10" />
+    <div className="min-h-screen bg-[#070707] text-white">
+      {/* Sticky top bar */}
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/55 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+          {/* Left: Logo */}
+          <Link href="/" className="flex items-center gap-2">
+            <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-amber-500/30 to-black/60">
+              {logoOk ? (
+                <Image
+                  src="/brand/logo.png"
+                  alt="MineAI"
+                  fill
+                  sizes="36px"
+                  className="object-cover"
+                  priority
+                  onError={() => setLogoOk(false)}
+                />
+              ) : null}
+            </div>
             <div className="text-sm font-semibold tracking-wide">MineAI</div>
+          </Link>
+
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 md:flex">
+            {nav.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                className={cx(
+                  "rounded-xl px-4 py-2 text-sm transition",
+                  active === item.key
+                    ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/20"
+                    : "text-zinc-200/80 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Right: actions */}
+          <div className="hidden items-center gap-2 md:flex">
+            <Link
+              href="/upgrade"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
+            >
+              Upgrade
+            </Link>
+
+            {!userEmail ? (
+              <>
+                <Link
+                  href="/signin"
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400"
+                >
+                  Sign up
+                </Link>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="max-w-[220px] truncate rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200/80">
+                  {userEmail}
+                </div>
+                <button
+                  onClick={signOut}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+                >
+                  Log out
+                </button>
+              </div>
+            )}
           </div>
 
-          <nav className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
-            <Link className={tabClass("home")} href="/">
-              Home
-            </Link>
-            <Link className={tabClass("create")} href="/create">
-              Create
-            </Link>
-            <Link className={tabClass("my")} href="/my-characters">
-              My Characters
-            </Link>
-            <Link className={tabClass("profile")} href="/profile">
-              Profile
-            </Link>
-          </nav>
-<UpgradeButton />
-
-          <UserButton />
+          {/* Mobile hamburger */}
+          <button
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 md:hidden"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            ☰
+          </button>
         </div>
+
+        {/* Mobile menu drawer */}
+        {menuOpen && (
+          <div className="md:hidden">
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="fixed right-0 top-0 z-50 h-full w-[86%] max-w-sm border-l border-white/10 bg-[#090909] p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">Menu</div>
+                <button
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {nav.map((item) => (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className={cx(
+                      "block rounded-xl px-4 py-3 text-sm",
+                      pathname === item.href || active === item.key
+                        ? "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20"
+                        : "border border-white/10 bg-white/5 text-zinc-200/80 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+
+                <Link
+                  href="/upgrade"
+                  onClick={() => setMenuOpen(false)}
+                  className="block rounded-xl bg-emerald-500 px-4 py-3 text-sm font-medium text-black hover:bg-emerald-400"
+                >
+                  Upgrade
+                </Link>
+
+                {!userEmail ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      href="/signin"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm hover:bg-white/10"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      href="/signup"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-xl bg-amber-500 px-4 py-3 text-center text-sm font-medium text-black hover:bg-amber-400"
+                    >
+                      Sign up
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="truncate text-xs text-zinc-200/80">{userEmail}</div>
+                    <button
+                      onClick={signOut}
+                      className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 text-xs text-zinc-500">
+                MineAI • Chats auto-delete after 30 days
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      {/* Main content */}
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-6 sm:px-6">{children}</main>
 
-      <footer className="mt-10 border-t border-white/10 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-xs text-zinc-500">
-          © {new Date().getFullYear()} MineAI • Chats auto-delete after 30 days
-        </div>
-      </footer>
+      {/* Mobile safe-area padding */}
+      <div className="h-[env(safe-area-inset-bottom)]" />
     </div>
   );
 }

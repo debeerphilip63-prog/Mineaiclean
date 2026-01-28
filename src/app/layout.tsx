@@ -2,8 +2,13 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "MineAI",
-  description: "Character chat platform",
+  title: "MineAI – Create Anyone. Chat Anything.",
+  description:
+    "MineAI lets you create AI characters, choose personas, and roleplay anything. Free and premium AI chat platform.",
+  icons: {
+    icon: "/logo-icon.png",
+    apple: "/logo-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -13,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-[#0B0B0F] text-zinc-100 antialiased">
+      <body className="min-h-screen bg-zinc-950 text-white antialiased">
         {children}
       </body>
     </html>

@@ -1,20 +1,28 @@
 import AppShell from "@/components/layout/AppShell";
+import HeroSlider from "@/components/home/HeroSlider";
 import HomeExplore from "@/components/home/HomeExplore";
 
 export default function HomePage() {
   return (
     <AppShell active="home">
-      <h1 className="text-4xl font-bold">
-        Create <span className="text-amber-200">Anyone</span>. Chat{" "}
-        <span className="text-amber-200">Anything</span>.
-      </h1>
+      <HeroSlider
+        title={
+          <>
+            Create <span className="text-amber-300">Anyone</span>. Chat{" "}
+            <span className="text-amber-400">Anything</span>.
+          </>
+        }
+        subtitle={
+          <>
+            Discover public characters, build your own, choose a persona, and roleplay.
+            Free tier has limits. Premium unlocks unlimited + private characters + AI images.
+          </>
+        }
+      />
 
-      <p className="mt-3 max-w-2xl text-zinc-300">
-        Discover public characters, build your own, choose a persona, and roleplay. Free tier has
-        limits. Premium unlocks unlimited + private characters + AI images.
-      </p>
-
-      <HomeExplore />
+      <div className="mt-10">
+        <HomeExplore />
+      </div>
     </AppShell>
   );
 }
