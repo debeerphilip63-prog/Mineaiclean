@@ -1,50 +1,78 @@
+// src/app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
 
+function need(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env var: ${name}`);
+  return v;
+}
+
+function supabaseAuthed() {
+  const cookieStore = cookies();
+  const url = need("SUPABASE_URL");
+  const anon = need("SUPABASE_ANON_KEY");
+
+  return createServerClient(url, anon, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach((c) => cookieStore.set(c.name, c.value, c.options));
+      },
+    },
+  });
+}
+
+function supabaseAdmin() {
+  const url = need("SUPABASE_URL");
+  const service = need("SUPABASE_SERVICE_ROLE_KEY");
+  return createClient(url, service, { auth: { persistSession: false } });
+}
+
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: userRes } = await supabase.auth.getUser();
-    if (!userRes.user) {
-      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    // Verify session
+    const sb = supabaseAuthed();
+    const { data: userRes } = await sb.auth.getUser();
+    const user = userRes.user;
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
     }
 
-    // Check admin (user-scoped)
-    const { data: me } = await supabase
+    // Verify admin from profiles
+    const { data: prof } = await sb
       .from("profiles")
       .select("is_admin")
-      .eq("id", userRes.user.id)
+      .eq("id", user.id)
       .single();
 
-    if (!me?.is_admin) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!prof?.is_admin) {
+      return NextResponse.json({ ok: false, error: "Admin only." }, { status: 403 });
     }
 
-    // Service-role client (bypasses RLS for listing users)
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    if (!serviceKey) {
-      return NextResponse.json(
-        { error: "Missing SUPABASE_SERVICE_ROLE_KEY in .env.local" },
-        { status: 500 }
-      );
+    // Fetch users (service role)
+    const admin = supabaseAdmin();
+    const { data, error } = await admin.auth.admin.listUsers({ perPage: 200, page: 1 });
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    const admin = createClient(url, serviceKey);
+    const users = (data.users || []).map((u) => ({
+      id: u.id,
+      email: u.email,
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+    }));
 
-    const { data: users, error } = await admin
-      .from("profiles")
-      .select("id,email,display_name,plan,is_admin,trial_until")
-      .order("created_at", { ascending: false });
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ users: users ?? [] });
+    return NextResponse.json({ ok: true, users });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? "Failed." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }

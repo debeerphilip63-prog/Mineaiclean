@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -20,22 +20,58 @@ function cx(...c: Array<string | false | null | undefined>) {
 export default function AppShell({ active = "home", children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [menuOpen, setMenuOpen] = useState(false); // mobile drawer
+  const [profileOpen, setProfileOpen] = useState(false); // dropdown
+  const profileRef = useRef<HTMLDivElement | null>(null);
+
   const [logoOk, setLogoOk] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      setUserEmail(data.user?.email ?? null);
-    });
+    async function load() {
+      const { data } = await supabase.auth.getUser();
+      const email = data.user?.email ?? null;
+      const uid = data.user?.id ?? null;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUserEmail(email);
+
+      if (uid) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", uid)
+          .single();
+
+        if (!mounted) return;
+        setIsAdmin(Boolean(prof?.is_admin));
+      } else {
+        setIsAdmin(false);
+      }
+    }
+
+    load();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUserEmail(session?.user?.email ?? null);
+
+      const uid = session?.user?.id ?? null;
+      if (uid) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", uid)
+          .single();
+        setIsAdmin(Boolean(prof?.is_admin));
+      } else {
+        setIsAdmin(false);
+      }
     });
 
     return () => {
@@ -44,7 +80,18 @@ export default function AppShell({ active = "home", children }: Props) {
     };
   }, [supabase]);
 
-  // Prevent background scrolling when mobile menu is open
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!profileRef.current) return;
+      if (profileRef.current.contains(e.target as Node)) return;
+      setProfileOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  // Prevent background scroll when mobile drawer is open
   useEffect(() => {
     if (menuOpen) {
       document.documentElement.style.overflow = "hidden";
@@ -69,15 +116,15 @@ export default function AppShell({ active = "home", children }: Props) {
   async function signOut() {
     await supabase.auth.signOut();
     setMenuOpen(false);
+    setProfileOpen(false);
     router.push("/");
   }
 
   return (
     <div className="min-h-screen bg-[#070707] text-white">
-      {/* Sticky top bar */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/55 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          {/* Left: Logo */}
+          {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-amber-500/30 to-black/60">
               {logoOk ? (
@@ -111,9 +158,23 @@ export default function AppShell({ active = "home", children }: Props) {
                 {item.label}
               </Link>
             ))}
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={cx(
+                  "rounded-xl px-4 py-2 text-sm transition",
+                  active === "admin"
+                    ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/20"
+                    : "text-zinc-200/80 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                Admin
+              </Link>
+            )}
           </nav>
 
-          {/* Right: actions */}
+          {/* Right actions */}
           <div className="hidden items-center gap-2 md:flex">
             <Link
               href="/upgrade"
@@ -138,16 +199,52 @@ export default function AppShell({ active = "home", children }: Props) {
                 </Link>
               </>
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="max-w-[220px] truncate rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200/80">
-                  {userEmail}
-                </div>
+              <div className="relative" ref={profileRef}>
                 <button
-                  onClick={signOut}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200/80 hover:bg-white/10"
                 >
-                  Log out
+                  <span className="max-w-[220px] truncate">{userEmail}</span>
+                  <span className="text-white/60">▾</span>
                 </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0b] shadow-xl">
+                    <Link
+                      href="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="block px-4 py-3 text-sm text-white/80 hover:bg-white/5"
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      href="/profile?tab=settings"
+                      onClick={() => setProfileOpen(false)}
+                      className="block px-4 py-3 text-sm text-white/80 hover:bg-white/5"
+                    >
+                      Settings
+                    </Link>
+
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setProfileOpen(false)}
+                        className="block px-4 py-3 text-sm text-amber-200 hover:bg-amber-500/10"
+                      >
+                        Admin Dashboard
+                      </Link>
+                    )}
+
+                    <div className="h-px bg-white/10" />
+
+                    <button
+                      onClick={signOut}
+                      className="block w-full px-4 py-3 text-left text-sm text-white/80 hover:bg-white/5"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -197,6 +294,16 @@ export default function AppShell({ active = "home", children }: Props) {
                   </Link>
                 ))}
 
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-xl bg-amber-500/15 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-400/20 hover:bg-amber-500/20"
+                  >
+                    Admin
+                  </Link>
+                )}
+
                 <Link
                   href="/upgrade"
                   onClick={() => setMenuOpen(false)}
@@ -243,10 +350,7 @@ export default function AppShell({ active = "home", children }: Props) {
         )}
       </header>
 
-      {/* Main content */}
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-6 sm:px-6">{children}</main>
-
-      {/* Mobile safe-area padding */}
       <div className="h-[env(safe-area-inset-bottom)]" />
     </div>
   );
