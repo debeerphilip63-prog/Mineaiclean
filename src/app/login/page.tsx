@@ -4,6 +4,14 @@ import AppShell from "@/components/layout/AppShell";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
+function getAppUrl() {
+  // Prefer stable env var in production, fallback to browser origin locally.
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "")
+  );
+}
+
 export default function LoginPage() {
   const supabase = createSupabaseBrowserClient();
   const [email, setEmail] = useState("");
@@ -12,19 +20,25 @@ export default function LoginPage() {
 
   async function signInWithGoogle() {
     setError(null);
+    const redirectTo = `${getAppUrl()}/auth/callback`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo },
     });
+
     if (error) setError(error.message);
   }
 
   async function signInWithEmail() {
     setError(null);
+    const emailRedirectTo = `${getAppUrl()}/auth/callback`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo },
     });
+
     if (error) setError(error.message);
     else setSent(true);
   }
